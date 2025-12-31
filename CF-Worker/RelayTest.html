@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CF Worker Relay 测试面板</title>
+<style>
+body {
+  font-family: "Segoe UI", sans-serif;
+  background: #f6f8fa;
+  color: #222;
+  padding: 20px;
+  line-height: 1.6;
+}
+input, button {
+  padding: 8px 12px;
+  font-size: 14px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  margin-right: 8px;
+}
+button {
+  cursor: pointer;
+  background: #0078ff;
+  color: #fff;
+  border: none;
+}
+button:hover {
+  background: #005ecc;
+}
+#result {
+  margin-top: 20px;
+  background: #fff;
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+</style>
+</head>
+<body>
+  <h1>🔍 CF Worker Relay 自测面板</h1>
+  <p>测试你的主 Worker（<code>sub.yixr.uno</code>）和中继 Worker（<code>relay.yixr.uno</code>）是否协同工作。</p>
+
+  <label>测试订阅源：</label>
+  <input id="testUrl" style="width:400px" value="http://93.184.216.34" />
+  <button onclick="testWorker()">测试主 Worker</button>
+  <button onclick="testRelay()">测试 Relay 直连</button>
+
+  <div id="result">结果将在这里显示...</div>
+
+<script>
+async function testWorker() {
+  const target = document.getElementById("testUrl").value.trim();
+  const testLink = `https://sub.yixr.uno/?url=${encodeURIComponent(target)}`;
+  const resultDiv = document.getElementById("result");
+  resultDiv.textContent = `⏳ 正在请求：${testLink}\n\n`;
+
+  const t0 = performance.now();
+  try {
+    const res = await fetch(testLink);
+    const t1 = performance.now();
+    const text = await res.text();
+    const preview = text.slice(0, 400);
+    const ctype = res.headers.get('content-type') || '(无)';
+
+    resultDiv.textContent += `${res.ok ? '✅' : '⚠️'} 状态码：${res.status}\n`;
+    resultDiv.textContent += `⏱️ 耗时：${(t1 - t0).toFixed(1)} ms\n`;
+    resultDiv.textContent += `📦 Content-Type：${ctype}\n`;
+    resultDiv.textContent += `📄 内容前 400 字符：\n${preview}\n\n`;
+
+    // 与 Worker 侧一致的 IP/本地判定
+    try {
+      const u = new URL(target);
+      const host = u.hostname;
+      const isIPv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+      const isLocalhost = host === 'localhost' || host === '::1';
+      const isIPv6 = host.includes(':');
+      const isIPv6Local = isIPv6 && (/^(::1)$/i.test(host) || /^(fc|fd|fe80)/i.test(host));
+      const isLocalSuffix = /\.(local|localhost|internal)$/i.test(host);
+      const isIpOrLocal = isIPv4 || isIPv6Local || isLocalhost || isLocalSuffix;
+      if (isIpOrLocal) {
+        resultDiv.textContent += `💡 检测到 IP/本地源，主 Worker 应已自动通过 relay.yixr.uno 中转。\n`;
+      } else {
+        resultDiv.textContent += `🌐 这是域名源，主 Worker 直接访问。\n`;
+      }
+    } catch (_) {}
+  } catch (err) {
+    resultDiv.textContent += `❌ 错误：${err.message}`;
+  }
+}
+
+async function testRelay() {
+  const target = document.getElementById("testUrl").value.trim();
+  const relayLink = `https://relay.yixr.uno/?target=${encodeURIComponent(target)}`;
+  const resultDiv = document.getElementById("result");
+  resultDiv.textContent = `⏳ 正在请求（Relay）：${relayLink}\n\n`;
+
+  const t0 = performance.now();
+  try {
+    const res = await fetch(relayLink);
+    const t1 = performance.now();
+    const text = await res.text();
+    const preview = text.slice(0, 400);
+    const ctype = res.headers.get('content-type') || '(无)';
+
+    resultDiv.textContent += `${res.ok ? '✅' : '⚠️'} 状态码：${res.status}\n`;
+    resultDiv.textContent += `⏱️ 耗时：${(t1 - t0).toFixed(1)} ms\n`;
+    resultDiv.textContent += `📦 Content-Type：${ctype}\n`;
+    resultDiv.textContent += `📄 内容前 400 字符：\n${preview}\n\n`;
+  } catch (err) {
+    resultDiv.textContent += `❌ 错误：${err.message}`;
+  }
+}
+</script>
+</body>
+</html>
